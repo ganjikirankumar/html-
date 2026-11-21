@@ -1,0 +1,565 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Snake Game | Admin Panel</title>
+
+<style>
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #0f172a;
+  color: white;
+  font-family: Arial, sans-serif;
+  text-align: center;
+}
+
+header {
+  background: #020617;
+  padding: 20px;
+}
+
+h1 {
+  color: #22c55e;
+}
+
+.container {
+  max-width: 600px;
+  margin: 25px auto;
+  padding: 20px;
+}
+
+.panel {
+  background: #1e293b;
+  padding: 20px;
+  margin: 20px auto;
+  border-radius: 12px;
+}
+
+input {
+  padding: 12px;
+  width: 90%;
+  max-width: 300px;
+  margin: 8px;
+  border: none;
+  border-radius: 6px;
+}
+
+button {
+  padding: 12px 20px;
+  margin: 8px;
+  border: none;
+  border-radius: 7px;
+  background: #22c55e;
+  color: #020617;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+button:hover {
+  background: #16a34a;
+}
+
+canvas {
+  background: #020617;
+  border: 3px solid #22c55e;
+  max-width: 100%;
+}
+
+.hidden {
+  display: none !important;
+}
+
+.record {
+  background: #334155;
+  padding: 12px;
+  margin: 8px 0;
+  border-radius: 6px;
+  overflow-wrap: anywhere;
+}
+
+.danger {
+  background: #ef4444;
+  color: white;
+}
+
+.admin-stats {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.stat {
+  background: #334155;
+  padding: 15px;
+  border-radius: 8px;
+  min-width: 130px;
+}
+</style>
+</head>
+
+<body>
+
+<header>
+  <h1>🐍 SNAKE GAME</h1>
+  <p>Play • Score • Win</p>
+</header>
+
+<div class="container">
+
+  <!-- PLAYER GAME -->
+  <div id="playerSection" class="panel">
+
+    <h2>Player Game</h2>
+
+    <input
+      type="text"
+      id="playerName"
+      placeholder="Enter your player name"
+      maxlength="30"
+    >
+
+    <h3>Score: <span id="score">0</span></h3>
+
+    <canvas id="game" width="400" height="400"></canvas>
+
+    <br>
+
+    <button onclick="startGame()">Start Game</button>
+    <button onclick="stopGame()">Stop Game</button>
+
+    <p id="gameMessage">Enter your name and start playing!</p>
+
+  </div>
+
+  <!-- ADMIN LOGIN -->
+  <div class="panel" id="loginSection">
+
+    <h2>🔐 Admin Login</h2>
+
+    <input
+      type="text"
+      id="username"
+      placeholder="Admin username"
+    >
+
+    <br>
+
+    <input
+      type="password"
+      id="password"
+      placeholder="Admin password"
+    >
+
+    <br>
+
+    <button onclick="adminLogin()">Admin Login</button>
+
+    <p id="loginMessage"></p>
+
+  </div>
+
+  <!-- ADMIN DASHBOARD -->
+  <div id="adminPanel" class="panel hidden">
+
+    <h2>👑 ADMIN DASHBOARD</h2>
+
+    <div class="admin-stats">
+
+      <div class="stat">
+        <h3>Total Games</h3>
+        <h2 id="totalGames">0</h2>
+      </div>
+
+      <div class="stat">
+        <h3>Highest Score</h3>
+        <h2 id="highestScore">0</h2>
+      </div>
+
+      <div class="stat">
+        <h3>Total Players</h3>
+        <h2 id="totalPlayers">0</h2>
+      </div>
+
+    </div>
+
+    <h3>📊 Player Game Records</h3>
+
+    <div id="playerRecords"></div>
+
+    <button onclick="refreshDashboard()">Refresh Records</button>
+
+    <button class="danger" onclick="deleteRecords()">
+      Delete All Records
+    </button>
+
+    <button onclick="adminLogout()">Logout</button>
+
+  </div>
+
+</div>
+
+<script>
+
+// GAME SETTINGS
+
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+const SIZE = 20;
+const WIDTH = 400;
+const HEIGHT = 400;
+
+let snake = [];
+let food = {};
+let dx = SIZE;
+let dy = 0;
+let score = 0;
+let gameLoop = null;
+let gameRunning = false;
+let playerStarted = false;
+
+let games = JSON.parse(
+  localStorage.getItem("snakeGames") || "[]"
+);
+
+// START GAME
+
+function startGame() {
+
+  if (gameRunning) return;
+
+  const name = document.getElementById("playerName")
+    .value.trim();
+
+  if (!name) {
+    alert("Please enter your player name!");
+    return;
+  }
+
+  snake = [{x: 200, y: 200}];
+
+  dx = SIZE;
+  dy = 0;
+
+  score = 0;
+
+  document.getElementById("score").textContent = score;
+
+  document.getElementById("gameMessage").textContent =
+    "Game started! Use arrow keys.";
+
+  gameRunning = true;
+  playerStarted = true;
+
+  placeFood();
+
+  clearInterval(gameLoop);
+
+  gameLoop = setInterval(drawGame, 120);
+
+}
+
+// FOOD
+
+function placeFood() {
+
+  do {
+    food = {
+      x: Math.floor(Math.random() * 20) * SIZE,
+      y: Math.floor(Math.random() * 20) * SIZE
+    };
+
+  } while (
+    snake.some(p => p.x === food.x && p.y === food.y)
+  );
+
+}
+
+// DRAW GAME
+
+function drawGame() {
+
+  ctx.clearRect(0, 0, WIDTH, HEIGHT);
+
+  const head = {
+    x: snake[0].x + dx,
+    y: snake[0].y + dy
+  };
+
+  // WALL COLLISION
+
+  if (
+    head.x < 0 ||
+    head.x >= WIDTH ||
+    head.y < 0 ||
+    head.y >= HEIGHT
+  ) {
+    endGame();
+    return;
+  }
+
+  // SNAKE COLLISION
+
+  const eating = head.x === food.x && head.y === food.y;
+
+  const body = eating ? snake : snake.slice(0, -1);
+
+  if (body.some(p => p.x === head.x && p.y === head.y)) {
+    endGame();
+    return;
+  }
+
+  snake.unshift(head);
+
+  // EAT FOOD
+
+  if (eating) {
+
+    score += 10;
+
+    document.getElementById("score").textContent = score;
+
+    placeFood();
+
+  } else {
+
+    snake.pop();
+
+  }
+
+  // DRAW SNAKE
+
+  ctx.fillStyle = "#22c55e";
+
+  snake.forEach(p => {
+    ctx.fillRect(p.x, p.y, SIZE - 2, SIZE - 2);
+  });
+
+  // DRAW FOOD
+
+  ctx.fillStyle = "#ef4444";
+
+  ctx.fillRect(food.x, food.y, SIZE - 2, SIZE - 2);
+
+}
+
+// KEYBOARD CONTROLS
+
+document.addEventListener("keydown", function(e) {
+
+  if (!gameRunning) return;
+
+  if (e.key === "ArrowUp" && dy === 0) {
+    dx = 0;
+    dy = -SIZE;
+  }
+
+  else if (e.key === "ArrowDown" && dy === 0) {
+    dx = 0;
+    dy = SIZE;
+  }
+
+  else if (e.key === "ArrowLeft" && dx === 0) {
+    dx = -SIZE;
+    dy = 0;
+  }
+
+  else if (e.key === "ArrowRight" && dx === 0) {
+    dx = SIZE;
+    dy = 0;
+  }
+
+  if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) {
+    e.preventDefault();
+  }
+
+});
+
+// END GAME
+
+function endGame() {
+
+  clearInterval(gameLoop);
+
+  gameRunning = false;
+
+  if (!playerStarted) return;
+
+  const name = document.getElementById("playerName")
+    .value.trim();
+
+  const record = {
+    name: name,
+    score: score,
+    date: new Date().toLocaleString()
+  };
+
+  games.push(record);
+
+  saveRecords();
+
+  document.getElementById("gameMessage").textContent =
+    "Game Over! Final score: " + score;
+
+  alert("Game Over! Your score: " + score);
+
+  playerStarted = false;
+
+}
+
+// STOP GAME
+
+function stopGame() {
+
+  if (!gameRunning) return;
+
+  endGame();
+
+}
+
+// SAVE RECORDS
+
+function saveRecords() {
+
+  localStorage.setItem(
+    "snakeGames",
+    JSON.stringify(games)
+  );
+
+}
+
+// ADMIN LOGIN
+
+function adminLogin() {
+
+  const username =
+    document.getElementById("username").value;
+
+  const password =
+    document.getElementById("password").value;
+
+  // DEMO LOGIN ONLY
+  if (
+    username === "admin" &&
+    password === "Admin123!"
+  ) {
+
+    document.getElementById("adminPanel")
+      .classList.remove("hidden");
+
+    document.getElementById("loginSection")
+      .classList.add("hidden");
+
+    document.getElementById("loginMessage")
+      .textContent = "";
+
+    refreshDashboard();
+
+  } else {
+
+    document.getElementById("loginMessage")
+      .textContent = "Invalid admin username or password!";
+
+  }
+
+}
+
+// REFRESH ADMIN DASHBOARD
+
+function refreshDashboard() {
+
+  document.getElementById("totalGames").textContent =
+    games.length;
+
+  const highest = games.length
+    ? Math.max(...games.map(g => Number(g.score) || 0))
+    : 0;
+
+  document.getElementById("highestScore").textContent =
+    highest;
+
+  const players = new Set(games.map(g => g.name));
+
+  document.getElementById("totalPlayers").textContent =
+    players.size;
+
+  const records = document.getElementById("playerRecords");
+
+  records.innerHTML = "";
+
+  if (games.length === 0) {
+
+    records.textContent = "No player records available.";
+
+    return;
+
+  }
+
+  games.slice().reverse().forEach(g => {
+
+    const item = document.createElement("div");
+
+    item.className = "record";
+
+    const name = document.createElement("strong");
+    name.textContent = "Player: " + g.name;
+
+    const scoreText = document.createElement("p");
+    scoreText.textContent = "Score: " + g.score;
+
+    const dateText = document.createElement("small");
+    dateText.textContent = "Date: " + g.date;
+
+    item.append(name, scoreText, dateText);
+
+    records.appendChild(item);
+
+  });
+
+}
+
+// DELETE RECORDS
+
+function deleteRecords() {
+
+  if (confirm("Are you sure you want to delete all records?")) {
+
+    games = [];
+
+    localStorage.removeItem("snakeGames");
+
+    refreshDashboard();
+
+    alert("All records deleted!");
+
+  }
+
+}
+
+// ADMIN LOGOUT
+
+function adminLogout() {
+
+  document.getElementById("adminPanel")
+    .classList.add("hidden");
+
+  document.getElementById("loginSection")
+    .classList.remove("hidden");
+
+  document.getElementById("username").value = "";
+
+  document.getElementById("password").value = "";
+
+}
+
+</script>
+
+</body>
+</html>
